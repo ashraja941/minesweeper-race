@@ -1,20 +1,16 @@
 {
   "name": "minesweeper_multiplayer",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "backend/server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node backend/server.js"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/ashraja941/minesweeper-race.git"
+  "dependencies": {
+    "express": "^5.1.0",
+    "ws": "^8.18.3"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/ashraja941/minesweeper-race/issues"
-  },
-  "homepage": "https://github.com/ashraja941/minesweeper-race#readme",
-  "description": ""
+  "description": "Multiplayer Minesweeper game deployed on Heroku"
 }
