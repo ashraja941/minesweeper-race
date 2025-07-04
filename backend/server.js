@@ -63,6 +63,7 @@ function createGame(ws, data) {
     const height = parseInt(data.height, 10) || 9;
     const mines = parseInt(data.mines, 10) || 10;
     const coop = !!data.coop;
+    const flagTimer = parseInt(data.flagTimer, 10) || 0;
     const gameId = generateGameId();
     const game = {
         id: gameId,
@@ -73,7 +74,8 @@ function createGame(ws, data) {
         width,
         height,
         mines,
-        coop
+        coop,
+        flagTimer
     };
     games.set(gameId, game);
     ws.gameId = gameId;
@@ -81,7 +83,7 @@ function createGame(ws, data) {
         type: 'game_created',
         gameId: gameId
     }));
-    console.log(`Game created: ${gameId} (coop: ${coop})`);
+    console.log(`Game created: ${gameId} (coop: ${coop}, flagTimer: ${flagTimer})`);
 }
 
 function joinGame(ws, data) {
@@ -119,13 +121,14 @@ function startGame(game) {
     game.started = true;
     game.restartRequests = [false, false];
     game.firstClick = false;
-    // Send board dimensions to both players
+    // Send board dimensions and flagTimer to both players
     game.players.forEach(player => {
         player.send(JSON.stringify({
             type: 'game_started',
             width: game.width,
             height: game.height,
-            mines: game.mines
+            mines: game.mines,
+            flagTimer: game.flagTimer
         }));
     });
     console.log(`Game started: ${game.id}`);
@@ -152,18 +155,18 @@ function handleGameAction(ws, data) {
         }
     } else if (data.action === 'lose') {
         if (!game.winner) {
-            // The other player wins
             const loser = ws;
             const winner = game.players.find(p => p !== ws);
             game.winner = winner;
             game.started = false;
-            const bomb = (typeof data.x === 'number' && typeof data.y === 'number') ? { x: data.x, y: data.y } : undefined;
+            // If reason is flag_timer, send a special message
+            const isFlagTimer = data.reason === 'flag_timer';
             game.players.forEach(player => {
                 player.send(JSON.stringify({
                     type: 'game_result',
                     winner: player === winner ? 'you' : 'opponent',
-                    reason: 'opponent_lost',
-                    ...(bomb ? { bomb } : {})
+                    reason: isFlagTimer ? 'flag_timer' : 'opponent_lost',
+                    ...(data.bomb ? { bomb: data.bomb } : {})
                 }));
             });
         }

@@ -12,6 +12,9 @@ class MinesweeperGame {
         this.waitingForFirstClick = true;
         this.totalMines = null;
         this.isCoop = false;
+        this.flagTimerValue = null;
+        this.flagTimerRemaining = null;
+        this.flagTimerInterval = null;
         
         this.initializeElements();
         this.bindEvents();
@@ -38,6 +41,8 @@ class MinesweeperGame {
             gridMines: document.getElementById('grid-mines'),
             bombsRemaining: document.getElementById('bombs-remaining'),
             coopMode: document.getElementById('coop-mode'),
+            flagTimer: document.getElementById('flag-timer'),
+            flagTimerDisplay: null,
         };
     }
     
@@ -86,10 +91,12 @@ class MinesweeperGame {
         const height = parseInt(this.elements.gridHeight.value, 10) || 9;
         const mines = parseInt(this.elements.gridMines.value, 10) || 10;
         const coop = !!this.elements.coopMode.checked;
+        const flagTimer = parseInt(this.elements.flagTimer.value, 10) || 0;
         this.totalMines = mines;
         this.isCoop = coop;
+        this.flagTimerValue = flagTimer;
         this.connectWebSocket(() => {
-            this.ws.send(JSON.stringify({ type: 'create_game', width, height, mines, coop }));
+            this.ws.send(JSON.stringify({ type: 'create_game', width, height, mines, coop, flagTimer }));
         });
     }
     
@@ -115,7 +122,7 @@ class MinesweeperGame {
                 
             case 'game_started':
                 this.totalMines = data.mines;
-                this.startGame({ width: data.width, height: data.height, mines: data.mines });
+                this.startGame({ width: data.width, height: data.height, mines: data.mines, flagTimer: data.flagTimer });
                 break;
                 
             case 'board_generated':
@@ -156,7 +163,7 @@ class MinesweeperGame {
         if (Array.isArray(boardOrDims)) {
             this.board = boardOrDims;
         } else {
-            // boardOrDims is { width, height, mines }
+            // boardOrDims is { width, height, mines, flagTimer }
             this.board = [];
             for (let y = 0; y < boardOrDims.height; y++) {
                 this.board[y] = [];
@@ -185,6 +192,8 @@ class MinesweeperGame {
         this.elements.gameResult.classList.remove('win', 'lose');
         this.elements.resultMessage.textContent = '';
         if (boardOrDims.mines) this.totalMines = boardOrDims.mines;
+        if (boardOrDims.flagTimer !== undefined) this.flagTimerValue = boardOrDims.flagTimer;
+        this.setupFlagTimer();
         this.updateBombsRemaining();
     }
     
@@ -309,7 +318,6 @@ class MinesweeperGame {
         event.preventDefault();
         if (!this.gameStarted || this.gameFinished) return;
         if (this.isCoop) {
-            // In co-op mode, send flag/unflag to server
             if (this.ws && this.ws.readyState === WebSocket.OPEN) {
                 this.ws.send(JSON.stringify({ type: 'coop_action', action: 'flag', x, y }));
             }
@@ -320,6 +328,10 @@ class MinesweeperGame {
         cell.isFlagged = !cell.isFlagged;
         this.updateCellDisplay(x, y);
         this.updateBombsRemaining();
+        if (this.flagTimerValue > 0 && cell.isFlagged) {
+            this.flagTimerRemaining = this.flagTimerValue;
+            this.updateFlagTimerDisplay();
+        }
     }
     
     revealCell(x, y, force) {
@@ -407,6 +419,7 @@ class MinesweeperGame {
     gameOver(won) {
         this.gameFinished = true;
         this.stopTimer();
+        this.clearFlagTimer();
         // Reveal all mines
         for (let y = 0; y < this.board.length; y++) {
             for (let x = 0; x < this.board[y].length; x++) {
@@ -480,6 +493,7 @@ class MinesweeperGame {
         this.elements.restartGameBtn.classList.add('hidden');
         this.elements.restartGameBtn.disabled = false;
         this.updateBombsRemaining();
+        this.clearFlagTimer();
     }
     
     showError(message) {
@@ -495,6 +509,7 @@ class MinesweeperGame {
     handleGameResult(data) {
         this.gameFinished = true;
         this.stopTimer();
+        this.clearFlagTimer();
         if (data.reason === 'win' || (data.reason === 'opponent_lost' && data.winner === 'you')) {
             // All bombs green
             for (let y = 0; y < this.board.length; y++) {
@@ -556,6 +571,53 @@ class MinesweeperGame {
             cell.isFlagged = flagged;
             this.updateCellDisplay(x, y);
             this.updateBombsRemaining();
+        }
+    }
+    
+    setupFlagTimer() {
+        if (!this.elements.flagTimerDisplay) {
+            this.elements.flagTimerDisplay = document.createElement('span');
+            this.elements.flagTimerDisplay.id = 'flag-timer-display';
+            this.elements.playerTime.parentNode.appendChild(this.elements.flagTimerDisplay);
+        }
+        this.clearFlagTimer();
+        if (this.flagTimerValue > 0) {
+            this.flagTimerRemaining = this.flagTimerValue;
+            this.updateFlagTimerDisplay();
+            this.flagTimerInterval = setInterval(() => {
+                if (!this.gameStarted || this.gameFinished) return;
+                this.flagTimerRemaining--;
+                this.updateFlagTimerDisplay();
+                if (this.flagTimerRemaining <= 0) {
+                    this.clearFlagTimer();
+                    this.handleFlagTimerLoss();
+                }
+            }, 1000);
+        } else {
+            this.elements.flagTimerDisplay.textContent = '';
+        }
+    }
+    
+    clearFlagTimer() {
+        if (this.flagTimerInterval) {
+            clearInterval(this.flagTimerInterval);
+            this.flagTimerInterval = null;
+        }
+        if (this.elements.flagTimerDisplay) {
+            this.elements.flagTimerDisplay.textContent = '';
+        }
+    }
+    
+    updateFlagTimerDisplay() {
+        if (this.elements.flagTimerDisplay) {
+            this.elements.flagTimerDisplay.textContent = ` | Flag in: ${this.flagTimerRemaining}s`;
+        }
+    }
+    
+    handleFlagTimerLoss() {
+        // Send lose action to server, reason: flag_timer
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.sendGameAction('lose', { reason: 'flag_timer' });
         }
     }
 }
