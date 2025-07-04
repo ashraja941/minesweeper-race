@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minesweeper Multiplayer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>Minesweeper Multiplayer</h1>
+        </header>
+        
+        <main>
+            <!-- Game Setup Section -->
+            <div id="game-setup" class="section">
+                <h2>Create or Join a Game</h2>
+                <div class="setup-buttons">
+                    <button id="create-game-btn" class="btn primary">Create New Game</button>
+                    <div class="join-section">
+                        <input type="text" id="game-id-input" placeholder="Enter Game ID" maxlength="6">
+                        <button id="join-game-btn" class="btn secondary">Join Game</button>
+                    </div>
+                </div>
+                <div id="game-info" class="hidden">
+                    <p>Game ID: <span id="current-game-id"></span></p>
+                    <p>Status: <span id="game-status">Waiting for players...</span></p>
+                </div>
+            </div>
+            
+            <!-- Game Board Section -->
+            <div id="game-board" class="section hidden">
+                <div class="game-header">
+                    <div class="player-info">
+                        <span>Your Time: <span id="player-time">00:00</span></span>
+                    </div>
+                    <div class="game-controls">
+                        <button id="new-game-btn" class="btn">New Game</button>
+                        <button id="restart-game-btn" class="btn secondary hidden">Restart Game</button>
+                    </div>
+                </div>
+                
+                <div id="board-container">
+                    <!-- Board will be generated here -->
+                </div>
+                
+                <div id="game-result" class="hidden">
+                    <h3 id="result-message"></h3>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>  
