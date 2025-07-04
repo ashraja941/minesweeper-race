@@ -349,8 +349,15 @@ class MinesweeperGame {
             if (cell.isMine) {
                 cellElement.classList.add('mine');
                 cellElement.textContent = '💣';
-                if (win) cellElement.classList.add('bomb-win');
-                if (loseBomb) cellElement.classList.add('bomb-lose');
+                if (win) {
+                    cellElement.classList.remove('bomb-lose');
+                    cellElement.classList.add('bomb-win');
+                } else if (loseBomb) {
+                    cellElement.classList.remove('bomb-win');
+                    cellElement.classList.add('bomb-lose');
+                } else {
+                    cellElement.classList.remove('bomb-win', 'bomb-lose');
+                }
             } else if (cell.neighborMines > 0) {
                 cellElement.textContent = cell.neighborMines;
                 cellElement.dataset.mines = cell.neighborMines;
@@ -468,26 +475,21 @@ class MinesweeperGame {
     handleGameResult(data) {
         this.gameFinished = true;
         this.stopTimer();
-        // If reason is 'win' or you lost because opponent won, show all bombs in green
-        // If reason is 'opponent_lost' and data.bomb, highlight only that bomb in red for the loser
         if (data.reason === 'win' || (data.reason === 'opponent_lost' && data.winner === 'you')) {
+            // All bombs green
             for (let y = 0; y < this.board.length; y++) {
                 for (let x = 0; x < this.board[y].length; x++) {
                     if (this.board[y][x].isMine) {
-                        this.revealMine(x, y, true, false);
+                        this.revealMine(x, y, true, false); // only .bomb-win
                     }
                 }
             }
         } else if (data.reason === 'opponent_lost' && data.winner === 'opponent' && data.bomb) {
-            // Only highlight the bomb that was clicked in red
+            // Only the clicked bomb is red, others default
             for (let y = 0; y < this.board.length; y++) {
                 for (let x = 0; x < this.board[y].length; x++) {
                     if (this.board[y][x].isMine) {
-                        if (x === data.bomb.x && y === data.bomb.y) {
-                            this.revealMine(x, y, false, true);
-                        } else {
-                            this.revealMine(x, y, false, false);
-                        }
+                        this.revealMine(x, y, false, (x === data.bomb.x && y === data.bomb.y));
                     }
                 }
             }
