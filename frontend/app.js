@@ -11,6 +11,7 @@ class MinesweeperGame {
         this.timer = null;
         this.waitingForFirstClick = true;
         this.totalMines = null;
+        this.isCoop = false;
         
         this.initializeElements();
         this.bindEvents();
@@ -35,7 +36,8 @@ class MinesweeperGame {
             gridWidth: document.getElementById('grid-width'),
             gridHeight: document.getElementById('grid-height'),
             gridMines: document.getElementById('grid-mines'),
-            bombsRemaining: document.getElementById('bombs-remaining')
+            bombsRemaining: document.getElementById('bombs-remaining'),
+            coopMode: document.getElementById('coop-mode'),
         };
     }
     
@@ -83,9 +85,11 @@ class MinesweeperGame {
         const width = parseInt(this.elements.gridWidth.value, 10) || 9;
         const height = parseInt(this.elements.gridHeight.value, 10) || 9;
         const mines = parseInt(this.elements.gridMines.value, 10) || 10;
+        const coop = !!this.elements.coopMode.checked;
         this.totalMines = mines;
+        this.isCoop = coop;
         this.connectWebSocket(() => {
-            this.ws.send(JSON.stringify({ type: 'create_game', width, height, mines }));
+            this.ws.send(JSON.stringify({ type: 'create_game', width, height, mines, coop }));
         });
     }
     
@@ -139,6 +143,10 @@ class MinesweeperGame {
             case 'game_restarted':
                 this.startGame(data.board);
                 this.elements.restartGameBtn.classList.add('hidden');
+                break;
+                
+            case 'coop_update':
+                this.handleCoopUpdate(data);
                 break;
         }
     }
@@ -213,6 +221,13 @@ class MinesweeperGame {
             }
             // Prevent further clicks until board is generated
             this.waitingForFirstClick = false;
+            return;
+        }
+        if (this.isCoop) {
+            // In co-op mode, send reveal to server
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                this.ws.send(JSON.stringify({ type: 'coop_action', action: 'reveal', x, y }));
+            }
             return;
         }
         const cell = this.board[y][x];
@@ -293,10 +308,15 @@ class MinesweeperGame {
     handleCellRightClick(x, y, event) {
         event.preventDefault();
         if (!this.gameStarted || this.gameFinished) return;
-        
+        if (this.isCoop) {
+            // In co-op mode, send flag/unflag to server
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                this.ws.send(JSON.stringify({ type: 'coop_action', action: 'flag', x, y }));
+            }
+            return;
+        }
         const cell = this.board[y][x];
         if (cell.isRevealed) return;
-        
         cell.isFlagged = !cell.isFlagged;
         this.updateCellDisplay(x, y);
         this.updateBombsRemaining();
@@ -522,6 +542,21 @@ class MinesweeperGame {
         }
         const remaining = Math.max(0, (this.totalMines || 0) - flagged);
         this.elements.bombsRemaining.textContent = `Bombs remaining: ${remaining}`;
+    }
+    
+    handleCoopUpdate(data) {
+        if (!this.board) return;
+        const { action, x, y, flagged } = data;
+        const cell = this.board[y][x];
+        if (!cell) return;
+        if (action === 'reveal') {
+            cell.isRevealed = true;
+            this.updateCellDisplay(x, y);
+        } else if (action === 'flag') {
+            cell.isFlagged = flagged;
+            this.updateCellDisplay(x, y);
+            this.updateBombsRemaining();
+        }
     }
 }
 

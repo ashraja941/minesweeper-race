@@ -50,6 +50,9 @@ function handleMessage(ws, data) {
         case 'first_click':
             handleFirstClick(ws, data);
             break;
+        case 'coop_action':
+            handleCoopAction(ws, data);
+            break;
         default:
             console.log('Unknown message type:', data.type);
     }
@@ -59,6 +62,7 @@ function createGame(ws, data) {
     const width = parseInt(data.width, 10) || 9;
     const height = parseInt(data.height, 10) || 9;
     const mines = parseInt(data.mines, 10) || 10;
+    const coop = !!data.coop;
     const gameId = generateGameId();
     const game = {
         id: gameId,
@@ -68,7 +72,8 @@ function createGame(ws, data) {
         winner: null,
         width,
         height,
-        mines
+        mines,
+        coop
     };
     games.set(gameId, game);
     ws.gameId = gameId;
@@ -76,7 +81,7 @@ function createGame(ws, data) {
         type: 'game_created',
         gameId: gameId
     }));
-    console.log(`Game created: ${gameId}`);
+    console.log(`Game created: ${gameId} (coop: ${coop})`);
 }
 
 function joinGame(ws, data) {
@@ -316,6 +321,109 @@ function generateBoardSafe(width, height, mineCount, safeX, safeY) {
         }
     }
     return board;
+}
+
+function handleCoopAction(ws, data) {
+    const game = games.get(ws.gameId);
+    if (!game || !game.started || !game.coop || !game.board) return;
+    const { action, x, y } = data;
+    const cell = game.board[y] && game.board[y][x];
+    if (!cell) return;
+    if (action === 'reveal') {
+        if (cell.isRevealed || cell.isFlagged) return;
+        cell.isRevealed = true;
+        // If it's a mine, both lose
+        if (cell.isMine) {
+            game.started = false;
+            game.players.forEach(player => {
+                player.send(JSON.stringify({
+                    type: 'game_result',
+                    winner: 'opponent',
+                    reason: 'opponent_lost',
+                    bomb: { x, y }
+                }));
+            });
+            return;
+        }
+        // If it's empty, reveal neighbors (flood fill)
+        if (cell.neighborMines === 0) {
+            coopFloodReveal(game, x, y);
+        }
+        // Broadcast the reveal to both players
+        game.players.forEach(player => {
+            player.send(JSON.stringify({
+                type: 'coop_update',
+                action: 'reveal',
+                x, y
+            }));
+        });
+        // Check for win
+        if (coopCheckWin(game)) {
+            game.started = false;
+            game.players.forEach(player => {
+                player.send(JSON.stringify({
+                    type: 'game_result',
+                    winner: 'you',
+                    reason: 'win'
+                }));
+            });
+        }
+    } else if (action === 'flag') {
+        if (cell.isRevealed) return;
+        cell.isFlagged = !cell.isFlagged;
+        // Broadcast the flag/unflag to both players
+        game.players.forEach(player => {
+            player.send(JSON.stringify({
+                type: 'coop_update',
+                action: 'flag',
+                x, y,
+                flagged: cell.isFlagged
+            }));
+        });
+    }
+}
+
+function coopFloodReveal(game, x, y) {
+    const width = game.width;
+    const height = game.height;
+    const stack = [[x, y]];
+    while (stack.length) {
+        const [cx, cy] = stack.pop();
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                const nx = cx + dx;
+                const ny = cy + dy;
+                if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                    const neighbor = game.board[ny][nx];
+                    if (!neighbor.isRevealed && !neighbor.isFlagged && !neighbor.isMine) {
+                        neighbor.isRevealed = true;
+                        game.players.forEach(player => {
+                            player.send(JSON.stringify({
+                                type: 'coop_update',
+                                action: 'reveal',
+                                x: nx, y: ny
+                            }));
+                        });
+                        if (neighbor.neighborMines === 0) {
+                            stack.push([nx, ny]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+function coopCheckWin(game) {
+    for (let y = 0; y < game.height; y++) {
+        for (let x = 0; x < game.width; x++) {
+            const cell = game.board[y][x];
+            if (!cell.isMine && !cell.isRevealed) {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 const PORT = process.env.PORT || 3000;
