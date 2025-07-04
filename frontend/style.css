@@ -191,6 +191,11 @@ header h1 {
     color: #fff !important;
 }
 
+.cell.bomb-lose {
+    background: #ff4444 !important;
+    color: #fff !important;
+}
+
 #game-result {
     text-align: center;
     padding: 20px;

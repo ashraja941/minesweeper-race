@@ -152,11 +152,13 @@ function handleGameAction(ws, data) {
             const winner = game.players.find(p => p !== ws);
             game.winner = winner;
             game.started = false;
+            const bomb = (typeof data.x === 'number' && typeof data.y === 'number') ? { x: data.x, y: data.y } : undefined;
             game.players.forEach(player => {
                 player.send(JSON.stringify({
                     type: 'game_result',
                     winner: player === winner ? 'you' : 'opponent',
-                    reason: 'opponent_lost'
+                    reason: 'opponent_lost',
+                    ...(bomb ? { bomb } : {})
                 }));
             });
         }

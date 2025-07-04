@@ -224,8 +224,8 @@ class MinesweeperGame {
         }
         if (cell.isRevealed) return;
         if (cell.isMine) {
-            // Send lose action to server, do not end game locally
-            this.sendGameAction('lose');
+            // Send lose action to server, include bomb coordinates
+            this.sendGameAction('lose', { x, y });
             return;
         } else {
             this.revealCell(x, y);
@@ -326,13 +326,13 @@ class MinesweeperGame {
         }
     }
     
-    revealMine(x, y) {
+    revealMine(x, y, win, loseBomb) {
         const cell = this.board[y][x];
         cell.isRevealed = true;
-        this.updateCellDisplay(x, y);
+        this.updateCellDisplay(x, y, win, loseBomb);
     }
     
-    updateCellDisplay(x, y) {
+    updateCellDisplay(x, y, win, loseBomb) {
         const cell = this.board[y][x];
         const cellElement = document.querySelector(`[data-x="${x}"][data-y="${y}"]`);
         
@@ -349,6 +349,8 @@ class MinesweeperGame {
             if (cell.isMine) {
                 cellElement.classList.add('mine');
                 cellElement.textContent = '💣';
+                if (win) cellElement.classList.add('bomb-win');
+                if (loseBomb) cellElement.classList.add('bomb-lose');
             } else if (cell.neighborMines > 0) {
                 cellElement.textContent = cell.neighborMines;
                 cellElement.dataset.mines = cell.neighborMines;
@@ -382,7 +384,7 @@ class MinesweeperGame {
         for (let y = 0; y < this.board.length; y++) {
             for (let x = 0; x < this.board[y].length; x++) {
                 if (this.board[y][x].isMine) {
-                    this.revealMine(x, y, won);
+                    this.revealMine(x, y, won, false);
                 }
             }
         }
@@ -457,19 +459,36 @@ class MinesweeperGame {
         alert(message); // Simple error display for now
     }
     
-    sendGameAction(action) {
+    sendGameAction(action, extra = {}) {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(JSON.stringify({ type: 'game_action', action }));
+            this.ws.send(JSON.stringify({ type: 'game_action', action, ...extra }));
         }
     }
     
     handleGameResult(data) {
         this.gameFinished = true;
         this.stopTimer();
-        for (let y = 0; y < this.board.length; y++) {
-            for (let x = 0; x < this.board[y].length; x++) {
-                if (this.board[y][x].isMine) {
-                    this.revealMine(x, y, data.winner === 'you');
+        // If reason is 'win' or you lost because opponent won, show all bombs in green
+        // If reason is 'opponent_lost' and data.bomb, highlight only that bomb in red for the loser
+        if (data.reason === 'win' || (data.reason === 'opponent_lost' && data.winner === 'you')) {
+            for (let y = 0; y < this.board.length; y++) {
+                for (let x = 0; x < this.board[y].length; x++) {
+                    if (this.board[y][x].isMine) {
+                        this.revealMine(x, y, true, false);
+                    }
+                }
+            }
+        } else if (data.reason === 'opponent_lost' && data.winner === 'opponent' && data.bomb) {
+            // Only highlight the bomb that was clicked in red
+            for (let y = 0; y < this.board.length; y++) {
+                for (let x = 0; x < this.board[y].length; x++) {
+                    if (this.board[y][x].isMine) {
+                        if (x === data.bomb.x && y === data.bomb.y) {
+                            this.revealMine(x, y, false, true);
+                        } else {
+                            this.revealMine(x, y, false, false);
+                        }
+                    }
                 }
             }
         }
@@ -477,7 +496,7 @@ class MinesweeperGame {
         this.elements.gameResult.classList.remove('win', 'lose');
         this.elements.gameResult.classList.add(data.winner === 'you' ? 'win' : 'lose');
         this.elements.resultMessage.textContent = data.winner === 'you' ?
-            'You win! 🎉' : 'You lose! Opponent finished first.';
+            'You win! 🎉' : (data.reason === 'opponent_lost' ? 'You lose! Opponent hit a mine.' : 'You lose! Opponent finished first.');
         this.elements.restartGameBtn.classList.remove('hidden');
         this.elements.restartGameBtn.disabled = false;
     }
