@@ -47,6 +47,9 @@ function handleMessage(ws, data) {
         case 'restart_game':
             handleRestartGame(ws);
             break;
+        case 'first_click':
+            handleFirstClick(ws, data);
+            break;
         default:
             console.log('Unknown message type:', data.type);
     }
@@ -103,15 +106,18 @@ function joinGame(ws, data) {
 }
 
 function startGame(game) {
-    // Generate the same board for both players
-    game.board = generateBoard(9, 9, 10); // 9x9 board with 10 mines
+    // Do not generate the board yet
+    game.board = null;
     game.started = true;
     game.restartRequests = [false, false];
-    // Send board to both players
+    game.firstClick = false;
+    // Send board dimensions to both players
     game.players.forEach(player => {
         player.send(JSON.stringify({
             type: 'game_started',
-            board: game.board
+            width: 9,
+            height: 9,
+            mines: 10
         }));
     });
     console.log(`Game started: ${game.id}`);
@@ -243,6 +249,68 @@ function countNeighborMines(board, x, y) {
         }
     }
     return count;
+}
+
+function handleFirstClick(ws, data) {
+    const game = games.get(ws.gameId);
+    if (!game || game.board) return; // Only allow once
+    const { x, y } = data;
+    // Generate board with (x, y) safe
+    game.board = generateBoardSafe(9, 9, 10, x, y);
+    // Send board and reveal instruction to both players
+    game.players.forEach(player => {
+        player.send(JSON.stringify({
+            type: 'board_generated',
+            board: game.board,
+            reveal: { x, y }
+        }));
+    });
+}
+
+function generateBoardSafe(width, height, mineCount, safeX, safeY) {
+    // Create empty board
+    const board = [];
+    for (let y = 0; y < height; y++) {
+        board[y] = [];
+        for (let x = 0; x < width; x++) {
+            board[y][x] = {
+                isMine: false,
+                isRevealed: false,
+                isFlagged: false,
+                neighborMines: 0
+            };
+        }
+    }
+    // Mark safe zone (clicked cell and neighbors)
+    const safeZone = new Set();
+    for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+            const nx = safeX + dx;
+            const ny = safeY + dy;
+            if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                safeZone.add(`${nx},${ny}`);
+            }
+        }
+    }
+    // Place mines randomly, avoiding safe zone
+    let minesPlaced = 0;
+    while (minesPlaced < mineCount) {
+        const x = Math.floor(Math.random() * width);
+        const y = Math.floor(Math.random() * height);
+        if (!board[y][x].isMine && !safeZone.has(`${x},${y}`)) {
+            board[y][x].isMine = true;
+            minesPlaced++;
+        }
+    }
+    // Calculate neighbor mine counts
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            if (!board[y][x].isMine) {
+                board[y][x].neighborMines = countNeighborMines(board, x, y);
+            }
+        }
+    }
+    return board;
 }
 
 const PORT = process.env.PORT || 3000;

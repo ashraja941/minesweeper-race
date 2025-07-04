@@ -9,6 +9,7 @@ class MinesweeperGame {
         this.gameFinished = false;
         this.startTime = null;
         this.timer = null;
+        this.waitingForFirstClick = true;
         
         this.initializeElements();
         this.bindEvents();
@@ -100,7 +101,13 @@ class MinesweeperGame {
                 break;
                 
             case 'game_started':
-                this.startGame(data.board);
+                this.startGame({ width: data.width, height: data.height, mines: data.mines });
+                break;
+                
+            case 'board_generated':
+                this.board = data.board;
+                this.waitingForFirstClick = false;
+                this.revealCell(data.reveal.x, data.reveal.y, true);
                 break;
                 
             case 'error':
@@ -126,19 +133,36 @@ class MinesweeperGame {
         }
     }
     
-    startGame(board) {
-        this.board = board;
+    startGame(boardOrDims) {
+        // If boardOrDims is a board, use it; if it's dimensions, create empty board
+        if (Array.isArray(boardOrDims)) {
+            this.board = boardOrDims;
+        } else {
+            // boardOrDims is { width, height, mines }
+            this.board = [];
+            for (let y = 0; y < boardOrDims.height; y++) {
+                this.board[y] = [];
+                for (let x = 0; x < boardOrDims.width; x++) {
+                    this.board[y][x] = {
+                        isMine: false,
+                        isRevealed: false,
+                        isFlagged: false,
+                        neighborMines: 0
+                    };
+                }
+            }
+            this.waitingForFirstClick = true;
+        }
         this.gameStarted = true;
         this.gameFinished = false;
         this.startTime = Date.now();
-        
         this.elements.gameSetup.classList.add('hidden');
         this.elements.gameBoard.classList.remove('hidden');
         this.elements.gameStatus.textContent = 'Game in progress';
-        
         this.renderBoard();
         this.startTimer();
         this.elements.restartGameBtn.classList.add('hidden');
+        this.elements.restartGameBtn.disabled = false;
         this.elements.gameResult.classList.add('hidden');
         this.elements.gameResult.classList.remove('win', 'lose');
         this.elements.resultMessage.textContent = '';
@@ -170,18 +194,23 @@ class MinesweeperGame {
     
     handleCellClick(x, y, event) {
         if (!this.gameStarted || this.gameFinished) return;
-        
+        if (this.waitingForFirstClick) {
+            // Send first click to server
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                this.ws.send(JSON.stringify({ type: 'first_click', x, y }));
+            }
+            // Prevent further clicks until board is generated
+            this.waitingForFirstClick = false;
+            return;
+        }
         const cell = this.board[y][x];
         if (cell.isFlagged) return;
-        
         // If clicking on a revealed number cell, implement chording
         if (cell.isRevealed && cell.neighborMines > 0) {
             this.handleChording(x, y);
             return;
         }
-        
         if (cell.isRevealed) return;
-        
         if (cell.isMine) {
             this.revealMine(x, y);
             this.gameOver(false);
@@ -259,14 +288,11 @@ class MinesweeperGame {
         this.updateCellDisplay(x, y);
     }
     
-    revealCell(x, y) {
+    revealCell(x, y, force) {
         const cell = this.board[y][x];
-        if (cell.isRevealed || cell.isFlagged) return;
-        
+        if ((cell.isRevealed || cell.isFlagged) && !force) return;
         cell.isRevealed = true;
         this.updateCellDisplay(x, y);
-        
-        // If it's an empty cell, reveal neighbors
         if (cell.neighborMines === 0) {
             this.revealNeighbors(x, y);
         }
@@ -347,13 +373,14 @@ class MinesweeperGame {
             }
         }
         this.showGameResult(won);
-        if (!won) this.sendGameAction('lose');
+        this.elements.restartGameBtn.classList.remove('hidden');
+        this.elements.restartGameBtn.disabled = false;
     }
     
     showGameResult(won) {
         this.elements.gameResult.classList.remove('hidden');
-        this.elements.gameResult.className = won ? 'win' : 'lose';
-        
+        this.elements.gameResult.classList.remove('win', 'lose');
+        this.elements.gameResult.classList.add(won ? 'win' : 'lose');
         const time = this.getElapsedTime();
         if (won) {
             this.elements.resultMessage.textContent = `Congratulations! You won in ${time}!`;
@@ -361,6 +388,7 @@ class MinesweeperGame {
             this.elements.resultMessage.textContent = `Game Over! You hit a mine. Time: ${time}`;
         }
         this.elements.restartGameBtn.classList.remove('hidden');
+        this.elements.restartGameBtn.disabled = false;
     }
     
     startTimer() {
@@ -407,6 +435,7 @@ class MinesweeperGame {
             this.ws = null;
         }
         this.elements.restartGameBtn.classList.add('hidden');
+        this.elements.restartGameBtn.disabled = false;
     }
     
     showError(message) {
@@ -422,7 +451,6 @@ class MinesweeperGame {
     handleGameResult(data) {
         this.gameFinished = true;
         this.stopTimer();
-        // Reveal all bombs with green if you won
         for (let y = 0; y < this.board.length; y++) {
             for (let x = 0; x < this.board[y].length; x++) {
                 if (this.board[y][x].isMine) {
@@ -431,10 +459,12 @@ class MinesweeperGame {
             }
         }
         this.elements.gameResult.classList.remove('hidden');
-        this.elements.gameResult.className = data.winner === 'you' ? 'win' : 'lose';
+        this.elements.gameResult.classList.remove('win', 'lose');
+        this.elements.gameResult.classList.add(data.winner === 'you' ? 'win' : 'lose');
         this.elements.resultMessage.textContent = data.winner === 'you' ?
             'You win! 🎉' : 'You lose! Opponent finished first.';
         this.elements.restartGameBtn.classList.remove('hidden');
+        this.elements.restartGameBtn.disabled = false;
     }
     
     requestRestart() {
