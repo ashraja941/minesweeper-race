@@ -240,3 +240,67 @@ header h1 {
         font-size: 12px;
     }
 }  
+
+.setup-cards {
+    display: flex;
+    gap: 32px;
+    justify-content: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+.card {
+    background: #f8f9fa;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    padding: 32px 28px 24px 28px;
+    min-width: 300px;
+    max-width: 350px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.create-card {
+    border: 2px solid #4CAF50;
+}
+.join-card {
+    border: 2px solid #2196F3;
+}
+.create-card h2, .join-card h2 {
+    margin-bottom: 18px;
+    color: #333;
+}
+.create-options, .join-options {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 100%;
+    margin-bottom: 18px;
+}
+.create-options label, .join-options label {
+    font-size: 16px;
+    color: #444;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.create-options input[type="number"], .join-options input[type="text"] {
+    margin-left: 8px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    font-size: 15px;
+    width: 80px;
+}
+#game-id-input {
+    width: 160px;
+}
+@media (max-width: 900px) {
+    .setup-cards {
+        flex-direction: column;
+        align-items: center;
+    }
+    .card {
+        min-width: 220px;
+        max-width: 95vw;
+    }
+}  

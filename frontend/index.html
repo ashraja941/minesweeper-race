@@ -13,21 +13,25 @@
         </header>
         
         <main>
-            <!-- Game Setup Section -->
             <div id="game-setup" class="section">
-                <h2>Create or Join a Game</h2>
-                <div class="setup-buttons">
-                    <div class="create-section">
-                        <label>Width: <input type="number" id="grid-width" min="5" max="30" value="9" style="width:60px;"></label>
-                        <label>Height: <input type="number" id="grid-height" min="5" max="30" value="9" style="width:60px;"></label>
-                        <label>Mines: <input type="number" id="grid-mines" min="1" max="99" value="10" style="width:60px;"></label>
-                        <label><input type="checkbox" id="coop-mode"> Co-op Mode</label>
-                        <label>Flag Timer (seconds): <input type="number" id="flag-timer" min="0" max="300" value="0" style="width:80px;"> <span style="font-size:12px;">(0 = off)</span></label>
+                <div class="setup-cards">
+                    <div class="card create-card">
+                        <h2>Create Game</h2>
+                        <div class="create-options">
+                            <label>Width:<input type="number" id="grid-width" min="5" max="30" value="9"></label>
+                            <label>Height:<input type="number" id="grid-height" min="5" max="30" value="9"></label>
+                            <label>Mines:<input type="number" id="grid-mines" min="1" max="99" value="10"></label>
+                            <label>Flag Timer (seconds):<input type="number" id="flag-timer" min="0" max="300" value="0"> <span style="font-size:12px;">(0 = off)</span></label>
+                            <label><input type="checkbox" id="coop-mode"> Co-op Mode</label>
+                        </div>
                         <button id="create-game-btn" class="btn primary">Create New Game</button>
                     </div>
-                    <div class="join-section">
-                        <input type="text" id="game-id-input" placeholder="Enter Game ID" maxlength="6">
-                        <button id="join-game-btn" class="btn secondary">Join Game</button>
+                    <div class="card join-card">
+                        <h2>Join Game</h2>
+                        <div class="join-options">
+                            <input type="text" id="game-id-input" placeholder="Enter Game ID" maxlength="6">
+                            <button id="join-game-btn" class="btn secondary">Join Game</button>
+                        </div>
                     </div>
                 </div>
                 <div id="game-info" class="hidden">
