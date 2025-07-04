@@ -56,23 +56,26 @@ function handleMessage(ws, data) {
 }
 
 function createGame(ws, data) {
+    const width = parseInt(data.width, 10) || 9;
+    const height = parseInt(data.height, 10) || 9;
+    const mines = parseInt(data.mines, 10) || 10;
     const gameId = generateGameId();
     const game = {
         id: gameId,
         players: [ws],
         board: null,
         started: false,
-        winner: null
+        winner: null,
+        width,
+        height,
+        mines
     };
-    
     games.set(gameId, game);
     ws.gameId = gameId;
-    
     ws.send(JSON.stringify({
         type: 'game_created',
         gameId: gameId
     }));
-    
     console.log(`Game created: ${gameId}`);
 }
 
@@ -115,9 +118,9 @@ function startGame(game) {
     game.players.forEach(player => {
         player.send(JSON.stringify({
             type: 'game_started',
-            width: 9,
-            height: 9,
-            mines: 10
+            width: game.width,
+            height: game.height,
+            mines: game.mines
         }));
     });
     console.log(`Game started: ${game.id}`);
@@ -148,14 +151,14 @@ function handleGameAction(ws, data) {
             const loser = ws;
             const winner = game.players.find(p => p !== ws);
             game.winner = winner;
+            game.started = false;
             game.players.forEach(player => {
                 player.send(JSON.stringify({
                     type: 'game_result',
                     winner: player === winner ? 'you' : 'opponent',
-                    reason: 'lose'
+                    reason: 'opponent_lost'
                 }));
             });
-            game.started = false;
         }
     }
 }
@@ -256,7 +259,7 @@ function handleFirstClick(ws, data) {
     if (!game || game.board) return; // Only allow once
     const { x, y } = data;
     // Generate board with (x, y) safe
-    game.board = generateBoardSafe(9, 9, 10, x, y);
+    game.board = generateBoardSafe(game.width, game.height, game.mines, x, y);
     // Send board and reveal instruction to both players
     game.players.forEach(player => {
         player.send(JSON.stringify({

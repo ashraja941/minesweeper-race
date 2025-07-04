@@ -10,6 +10,7 @@ class MinesweeperGame {
         this.startTime = null;
         this.timer = null;
         this.waitingForFirstClick = true;
+        this.totalMines = null;
         
         this.initializeElements();
         this.bindEvents();
@@ -30,7 +31,11 @@ class MinesweeperGame {
             newGameBtn: document.getElementById('new-game-btn'),
             gameResult: document.getElementById('game-result'),
             resultMessage: document.getElementById('result-message'),
-            restartGameBtn: document.getElementById('restart-game-btn')
+            restartGameBtn: document.getElementById('restart-game-btn'),
+            gridWidth: document.getElementById('grid-width'),
+            gridHeight: document.getElementById('grid-height'),
+            gridMines: document.getElementById('grid-mines'),
+            bombsRemaining: document.getElementById('bombs-remaining')
         };
     }
     
@@ -75,8 +80,12 @@ class MinesweeperGame {
     }
     
     createGame() {
+        const width = parseInt(this.elements.gridWidth.value, 10) || 9;
+        const height = parseInt(this.elements.gridHeight.value, 10) || 9;
+        const mines = parseInt(this.elements.gridMines.value, 10) || 10;
+        this.totalMines = mines;
         this.connectWebSocket(() => {
-            this.ws.send(JSON.stringify({ type: 'create_game' }));
+            this.ws.send(JSON.stringify({ type: 'create_game', width, height, mines }));
         });
     }
     
@@ -101,6 +110,7 @@ class MinesweeperGame {
                 break;
                 
             case 'game_started':
+                this.totalMines = data.mines;
                 this.startGame({ width: data.width, height: data.height, mines: data.mines });
                 break;
                 
@@ -166,6 +176,8 @@ class MinesweeperGame {
         this.elements.gameResult.classList.add('hidden');
         this.elements.gameResult.classList.remove('win', 'lose');
         this.elements.resultMessage.textContent = '';
+        if (boardOrDims.mines) this.totalMines = boardOrDims.mines;
+        this.updateBombsRemaining();
     }
     
     renderBoard() {
@@ -212,8 +224,9 @@ class MinesweeperGame {
         }
         if (cell.isRevealed) return;
         if (cell.isMine) {
-            this.revealMine(x, y);
-            this.gameOver(false);
+            // Send lose action to server, do not end game locally
+            this.sendGameAction('lose');
+            return;
         } else {
             this.revealCell(x, y);
             this.checkWin();
@@ -286,6 +299,7 @@ class MinesweeperGame {
         
         cell.isFlagged = !cell.isFlagged;
         this.updateCellDisplay(x, y);
+        this.updateBombsRemaining();
     }
     
     revealCell(x, y, force) {
@@ -436,6 +450,7 @@ class MinesweeperGame {
         }
         this.elements.restartGameBtn.classList.add('hidden');
         this.elements.restartGameBtn.disabled = false;
+        this.updateBombsRemaining();
     }
     
     showError(message) {
@@ -473,6 +488,19 @@ class MinesweeperGame {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify({ type: 'restart_game' }));
         }
+    }
+    
+    updateBombsRemaining() {
+        let flagged = 0;
+        if (this.board) {
+            for (let y = 0; y < this.board.length; y++) {
+                for (let x = 0; x < this.board[y].length; x++) {
+                    if (this.board[y][x].isFlagged) flagged++;
+                }
+            }
+        }
+        const remaining = Math.max(0, (this.totalMines || 0) - flagged);
+        this.elements.bombsRemaining.textContent = `Bombs remaining: ${remaining}`;
     }
 }
 

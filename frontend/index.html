@@ -17,7 +17,12 @@
             <div id="game-setup" class="section">
                 <h2>Create or Join a Game</h2>
                 <div class="setup-buttons">
-                    <button id="create-game-btn" class="btn primary">Create New Game</button>
+                    <div class="create-section">
+                        <label>Width: <input type="number" id="grid-width" min="5" max="30" value="9" style="width:60px;"></label>
+                        <label>Height: <input type="number" id="grid-height" min="5" max="30" value="9" style="width:60px;"></label>
+                        <label>Mines: <input type="number" id="grid-mines" min="1" max="99" value="10" style="width:60px;"></label>
+                        <button id="create-game-btn" class="btn primary">Create New Game</button>
+                    </div>
                     <div class="join-section">
                         <input type="text" id="game-id-input" placeholder="Enter Game ID" maxlength="6">
                         <button id="join-game-btn" class="btn secondary">Join Game</button>
@@ -34,6 +39,7 @@
                 <div class="game-header">
                     <div class="player-info">
                         <span>Your Time: <span id="player-time">00:00</span></span>
+                        <span id="bombs-remaining" style="margin-left: 30px;">Bombs remaining: 0</span>
                     </div>
                     <div class="game-controls">
                         <button id="new-game-btn" class="btn">New Game</button>
